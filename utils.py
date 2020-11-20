@@ -4,23 +4,12 @@ import torch
 from skimage.measure import compare_psnr, compare_ssim
 
 
-def batch_psnr_ssim(img, imclean, data_range=1., batch_ssim=True):
-    r"""
-    Computes the PSNR along the batch dimension (not pixel-wise)
-
-    Args:
-        img: a `torch.Tensor` containing the restored image
-        imclean: a `torch.Tensor` containing the reference image
-        data_range: The data range of the x image (distance between
-            minimum and maximum possible values). By default, this is estimated
-            from the image data-type.
-    """
+def batch_psnr_ssim(img, imclean, batch_ssim=True):
     img_cpu = img.cpu().data.numpy().astype(np.float32)
     imgclean = imclean.cpu().data.numpy().astype(np.float32)
     psnrs = []
     ssims = []
     for i in range(img_cpu.shape[0]):
-        # psnr += compare_psnr(imgclean[i, :, :, :], img_cpu[i, :, :, :], data_range=data_range)
         im1 = np.array(img_cpu[i, :, :, :].transpose((1, 2, 0)) * 255., dtype='uint8')
         im2 = np.array(imgclean[i, :, :, :].transpose((1, 2, 0)) * 255., dtype='uint8')
         im1_y = cv2.cvtColor(im1, cv2.COLOR_BGR2YCR_CB)[:, :, 0]
@@ -28,8 +17,10 @@ def batch_psnr_ssim(img, imclean, data_range=1., batch_ssim=True):
         psnrs.append(compare_psnr(im1_y, im2_y))
         if batch_ssim:
             ssims.append(compare_ssim(im1_y, im2_y))
-
-    return np.array(psnrs), np.array(ssims)
+    if batch_ssim:
+        return np.array(psnrs), np.array(ssims)
+    else:
+        return np.array(psnrs)
 
 
 def align_to_num(img, num=4):

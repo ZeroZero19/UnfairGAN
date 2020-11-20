@@ -1,3 +1,4 @@
+# Pix2Pix, Code adapted from: 'https://github.com/mrzhu-cool/pix2pix-pytorch'
 import torch
 import torch.nn as nn
 from torch.nn import init

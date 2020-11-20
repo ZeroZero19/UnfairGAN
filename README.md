@@ -24,6 +24,6 @@ python test_raindrop.py
 
 [2] [I Can See Clearly Now : Image Restoration via De-Raining](https://github.com/meton-robean/ICanSeeClearyNow_unofficial)
 
-[3] [Recovering Realistic Texture in Image Super-resolution by Deep Spatial Feature Transform](https://github.com/xinntao/SFTGAN?fbclid=IwAR2tImshTb7XOpgaCgvByDQ3dDF3rE2N68xZi7-WaEV94gJ2c1N028vwWjY)
+[3] [Image-to-Image Translation Using Conditional Adversarial Networks](https://github.com/mrzhu-cool/pix2pix-pytorch)
 
-[4] [Image-to-Image Translation Using Conditional Adversarial Networks](https://github.com/mrzhu-cool/pix2pix-pytorch)
+[4] [Richer Convolutional Features for Edge Detection](https://github.com/meteorshowers/RCF-pytorch)

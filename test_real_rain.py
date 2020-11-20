@@ -26,14 +26,14 @@ opt = parser.parse_args()
 print(opt)
 
 if opt.model == 'all':
-    gen_specific = [
+    dicts = [
         'UnfairGAN',
         'AttenGAN',
         'RoboCar',
         'Pix2Pix',
     ]
 else:
-    gen_specific = [
+    dicts = [
         opt.model,
         ]
 
@@ -52,7 +52,7 @@ results = {}
 sys.stdout.write('> Run ...')
 with torch.no_grad():
     inxseg_chs = 0
-    for r in gen_specific:
+    for r in dicts:
         results[r] = {}
         # estNet
         from network.unfairGan import Generator
@@ -105,11 +105,11 @@ with torch.no_grad():
             results[r][testset] = {'psnr': [], 'ssim': []}
             for i, img in enumerate(ls):
                 # input
-                img_rain_cv2 = cv2.imread(os.path.join('testsets/%s/rain' % testset, img))
-                input = align_to_num(img_rain_cv2)
+                input_cv2 = cv2.imread(os.path.join('testsets/%s/rain' % testset, img))
+                input = align_to_num(input_cv2)
                 input = to_tensor(input, device)
                 # input align to 16
-                input_a16 = align_to_num(img_rain_cv2,16)
+                input_a16 = align_to_num(input_cv2, 16)
                 input_a16 = to_tensor(input_a16, device)
 
                 if r in ('UnfairGAN', ):
@@ -119,7 +119,7 @@ with torch.no_grad():
                     est = logimg.mul_(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to('cpu', torch.uint8).numpy()[:,
                           :, ::-1]
                     derain = align_to_num(est)
-                    rainmap = make_rainmap(img_rain_cv2, derain)
+                    rainmap = make_rainmap(input_cv2, derain)
                     rainmap = to_tensor(rainmap, device)
                     # edge
                     derain = prepare_image_cv2(np.array(est, dtype=np.float32))

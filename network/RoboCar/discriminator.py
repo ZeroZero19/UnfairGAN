@@ -1,3 +1,4 @@
+# RoboCar, Code adapted from: 'https://github.com/meton-robean/ICanSeeClearyNow_unofficial'
 import torch.nn as nn
 import torch.nn.functional as F
 import torch

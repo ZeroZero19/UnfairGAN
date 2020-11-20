@@ -1,21 +1,14 @@
-#!/usr/bin/env python
-
 from __future__ import print_function, division
-
-import math
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.utils.spectral_norm as spectral_norm
 import torch.utils.data
-from torch.autograd import Variable
-from collections import OrderedDict
-from torch.nn import BatchNorm2d as bn
+
 
 act = nn.LeakyReLU(0.1, inplace=True)
 
-###  (Generator)
+###  Generator
 class Generator(nn.Module):
 
     def __init__(self, inX_chs=3, inRM_chs=1, inED_chs=3, out_chs=3, nfeats=32, num_main_blk=1,
@@ -56,7 +49,6 @@ class Generator(nn.Module):
         self.main_blk = nn.Sequential(*modules)
 
         self.out = nn.Sequential(
-                # nn.ConvTranspose2d(nfeats, nfeats, kernel_size=4, stride=2, padding=1),
                 act,
                 nn.Conv2d(nfeats, out_chs, kernel_size=3, stride=1, padding=1)
             )
@@ -64,33 +56,17 @@ class Generator(nn.Module):
     def forward(self, x, rm=None, ed=None):
         if rm is not None or ed is not None:
             fea_x, fea_sub = self.aam(x, rm, ed)
-            # fea = []
-            # fea.append(fea_x)
             for main in self.main_blk:
                 fea_x = main(fea_x, fea_sub)
-                # fea.append(fea_x)
-            # concat = torch.cat(fea, 1)
-            # fea = fea_x + self.conv_1(concat)
-            # out = self.out(fea) + x
-
             out = self.out(self.auam((fea_x, fea_sub))) + x
         else:
             fea_x = self.aam(x)
-            # fea = []
-            # fea.append(fea_x)
             for main in self.main_blk:
                 fea_x = main(fea_x)
-                # fea.append(fea_x)
-            # concat = torch.cat(fea, 1)
-            # fea = fea_x + self.conv_1(concat)
-            # out = self.out(fea) + x
-
             out = self.out(fea_x) + x
 
         return out
-        # return out, out1, out2, rain_map, rain_map1, rain_map2
 
-### Discriminator ed+rm
 class Discriminator(nn.Module):
     def __init__(self, inX_chs=3, nfeats=32, inRM_chs=1, inED_chs=3, act_type='DAF',):
         super(Discriminator, self).__init__()
@@ -121,71 +97,33 @@ class Discriminator(nn.Module):
                           condRM=condRM, condED=condED, act_type=act_type)
 
         self.main = nn.Sequential(
-            # SpectralNorm(nn.Conv2d(inchs, nfeats, kernel_size=3, padding=1)),
-            # nn.LeakyReLU(l),
-            # nn.Dropout(0.2),
-
-            # RDBSN(64, 4, 16),
             nn.Conv2d(nfeats, nfeats, kernel_size=5, stride=2, padding=2),
-            # nn.BatchNorm2d(64),
             act,
-            # nn.Dropout(0.2),
-
             nn.Conv2d(nfeats, nfeats * 2, kernel_size=5, padding=2),
-            # nn.BatchNorm2d(128),
             act,
-            # nn.Dropout(0.2),
-
-            # RDBSN(128, 4, 16),
             nn.Conv2d(nfeats * 2, nfeats * 2, kernel_size=5, stride=2, padding=2),
-            # nn.BatchNorm2d(128),
             act,
-            # nn.Dropout(0.2),
-
             nn.Conv2d(nfeats * 2, nfeats * 4, kernel_size=5, padding=2),
-            # nn.BatchNorm2d(256),
             act,
-            # nn.Dropout(0.2),
-
-            # RDBSN(256, 4, 16),
             nn.Conv2d(nfeats * 4, nfeats * 4, kernel_size=5, stride=2, padding=2),
-            # nn.BatchNorm2d(256),
             act,
-            # nn.Dropout(0.2),
-
-            # SpectralNorm(nn.Conv2d(nfeats*4, nfeats*8, kernel_size=3, padding=1)),
-            # # nn.BatchNorm2d(512),
-            # nn.LeakyReLU(l),
-            # # nn.Dropout(0.2),
-            #
-            # # RDBSN(512, 4, 16),
-            # SpectralNorm(nn.Conv2d(nfeats*8, nfeats*8, kernel_size=3, stride=2, padding=1)),
-            # # nn.BatchNorm2d(512),
-            # nn.LeakyReLU(l),
-            # # nn.Dropout(0.2),
-
             nn.AdaptiveAvgPool2d(1),
             nn.Conv2d(nfeats * 4, nfeats * 8, kernel_size=1),
             act,
             nn.Conv2d(nfeats * 8, 1, kernel_size=1),
-            # nn.Dropout(0.2)
         )
 
-        # self.fc = SpectralNorm(nn.Linear(4 * 4 * 1024, 1))
+        # self.fc = nn.Linear(4 * 4 * 1024, 1)
 
     def forward(self, x, rm=None, ed=None):
-
         if rm is not None or ed is not None:
             fea_x, fea_sub = self.in_blk(x, rm, ed)
             y = self.main(self.condblock((fea_x, fea_sub)))
         else:
             fea_x = self.inx(x)
             y = self.main(fea_x)
-        # print ('D output size :' +  str(y.size()))
-        # si = torch.sigmoid(y).view(y.size()[0], -1)
         si = y.view(y.size()[0], -1)
         return si
-        # return self.fc(si)
 
 
 ### sub class
@@ -209,19 +147,16 @@ class AAM(nn.Module):
 
         self.inx = nn.Sequential(
             nn.Conv2d(inX_chs, nfeats, kernel_size=3, stride=1, padding=1),
-            # nn.Conv2d(nfeats, nfeats, kernel_size=4, stride=2, padding=1),
             act_inX,
         )
         if inRM_chs > 0:
             self.inRM = nn.Sequential(
                 nn.Conv2d(inRM_chs, condRM, kernel_size=3, stride=1, padding=1),
-                # nn.Conv2d(nfeats, nfeats, kernel_size=4, stride=2, padding=1),
                 act_inRM,
             )
         if inED_chs > 0:
             self.inED = nn.Sequential(
                 nn.Conv2d(inED_chs, condED, kernel_size=3, stride=1, padding=1),
-                # nn.Conv2d(nfeats, nfeats, kernel_size=4, stride=2, padding=1),
                 act_inED,
             )
 
@@ -452,7 +387,7 @@ class up(nn.Module):
         x = x2 + x1
         return x
 
-# XUnit reference from 'https://github.com/kligvasser/xUnit'
+# XUnit, Code adapted from: 'https://github.com/kligvasser/xUnit'
 class Gaussian(nn.Module):
     def forward(self,input):
         return torch.exp(-torch.mul(input,input))

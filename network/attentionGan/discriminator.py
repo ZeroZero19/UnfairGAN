@@ -1,3 +1,4 @@
+# AttenGAN, Code adapted from: 'https://github.com/rui1996/DeRaindrop'
 #PyTorch lib
 import torch.nn as nn
 

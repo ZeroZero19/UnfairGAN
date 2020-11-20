@@ -21,9 +21,9 @@ parser.add_argument("--model",  default='all', const='all', nargs='?', choices=[
                                                                                 'U_D_ReLU_UG',
                                                                                 'U_D_XU_UG',
                                                                                 'UnfairGAN',
+                                                                                'Pix2Pix',
                                                                                 'AttenGAN',
-                                                                                'RoboCar',
-                                                                                'Pix2Pix',], help='')
+                                                                                'RoboCar',], help='')
 parser.add_argument("--save_img", type='bool', default=True, help='')
 parser.add_argument("--debug", type='bool', default=False, help='')
 parser.add_argument("--gpu", type='bool', default=True, help='')
@@ -33,7 +33,7 @@ opt = parser.parse_args()
 print(opt)
 
 if opt.model == 'all':
-    gen_specific = [
+    dicts = [
         'rain',
         'U',
         'U_D',
@@ -42,12 +42,12 @@ if opt.model == 'all':
         'U_D_ReLU_UG',
         'U_D_XU_UG',
         'UnfairGAN',
+        'Pix2Pix',
         'AttenGAN',
         'RoboCar',
-        'Pix2Pix',
     ]
 else:
-    gen_specific = [
+    dicts = [
         'rain',
         opt.model,
         ]
@@ -68,7 +68,7 @@ results = {}
 sys.stdout.write('> Run ...')
 with torch.no_grad():
     inxseg_chs = 0
-    for r in gen_specific:
+    for r in dicts:
         results[r] = {}
         # estNet
         from network.unfairGan import Generator
@@ -122,32 +122,31 @@ with torch.no_grad():
             for i, img in enumerate(ls):
                 if opt.debug and i > 0: continue
                 # input
-                img_rain_cv2 = cv2.imread(os.path.join('testsets/%s/rain' % testset, img))
-                input = align_to_num(img_rain_cv2)
+                input_cv2 = cv2.imread(os.path.join('testsets/%s/rain' % testset, img))
+                input = align_to_num(input_cv2)
                 input = to_tensor(input, device)
                 # input align to 16
-                input_a16 = align_to_num(img_rain_cv2,16)
+                input_a16 = align_to_num(input_cv2, 16)
                 input_a16 = to_tensor(input_a16, device)
                 # target
-                target_rgb = cv2.imread(os.path.join('testsets/%s/gt' % testset, img[:7] + '.png'))
-                target = align_to_num(target_rgb)
+                target_cv2 = cv2.imread(os.path.join('testsets/%s/gt' % testset, img[:7] + '.png'))
+                target = align_to_num(target_cv2)
                 target = to_tensor(target, device)
                 # target align to 16
-                target_a16 = align_to_num(target_rgb,16)
+                target_a16 = align_to_num(target_cv2, 16)
                 target_a16 = to_tensor(target_a16, device)
 
-                if r in (
-                        'U_D_ReLU_G',
+                if r in ('U_D_ReLU_G',
                         'U_D_ReLU_UG',
                         'U_D_XU_UG',
-                        'UnfairGAN', ):
+                        'UnfairGAN',):
                     # rainmap
                     est = estNet(input)
                     logimg = make_grid(est.data.clamp(0., 1.), nrow=8, normalize=False, scale_each=False)
                     est = logimg.mul_(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to('cpu', torch.uint8).numpy()[:,
                           :, ::-1]
                     derain = align_to_num(est)
-                    rainmap = make_rainmap(img_rain_cv2, derain)
+                    rainmap = make_rainmap(input_cv2, derain)
                     rainmap = to_tensor(rainmap, device)
                     # edge
                     derain = prepare_image_cv2(np.array(est, dtype=np.float32))
@@ -171,20 +170,21 @@ with torch.no_grad():
 
                 # output
                 if r == 'rain':
-                    psnr, ssim = batch_psnr_ssim(input.clamp(0., 1.), target.clamp(0., 1.), 1., batch_ssim=True)
+                    psnr, ssim = batch_psnr_ssim(input.clamp(0., 1.), target.clamp(0., 1.), batch_ssim=True)
                 elif r == 'U_D_G' or r == 'U_D' or r == 'U' or 'Pix2Pix' in r:
                     output = Gnet(input)
-                    psnr, ssim = batch_psnr_ssim(output.clamp(0., 1.), target.clamp(0., 1.), 1., batch_ssim=True)
+                    psnr, ssim = batch_psnr_ssim(output.clamp(0., 1.), target.clamp(0., 1.), batch_ssim=True)
                 elif 'RoboCar' in r:
                     output = Gnet(input_a16)
-                    psnr, ssim = batch_psnr_ssim(output.clamp(0., 1.), target_a16.clamp(0., 1.), 1., batch_ssim=True)
+                    psnr, ssim = batch_psnr_ssim(output.clamp(0., 1.), target_a16.clamp(0., 1.), batch_ssim=True)
 
                 elif 'AttenGAN' in r:
                     output = Gnet(input)[-1]
-                    psnr, ssim = batch_psnr_ssim(output.clamp(0., 1.), target.clamp(0., 1.), 1., batch_ssim=True)
+                    psnr, ssim = batch_psnr_ssim(output.clamp(0., 1.), target.clamp(0., 1.), batch_ssim=True)
                 else:
                     output = Gnet(input, rm=rainmap, ed=edge)
-                    psnr, ssim = batch_psnr_ssim(output.clamp(0., 1.), target.clamp(0., 1.), 1., batch_ssim=True)
+                    psnr, ssim = batch_psnr_ssim(output.clamp(0., 1.), target.clamp(0., 1.), batch_ssim=True)
+
                 if opt.save_img and r != 'rain':
                     os.makedirs(os.path.join('%s/%s/%s' % (opt.out,testset, r)), exist_ok=True)
                     out_path = os.path.join('%s/%s/%s/%s' % (opt.out,testset, r, img))
@@ -206,7 +206,7 @@ sys.stdout.write('\n')
 
 for testset in testsets:
     print('########   %s   #######'%testset)
-    for r in gen_specific:
+    for r in dicts:
         psnr = np.array(results[r][testset]['psnr']).mean()
         ssim = np.array(results[r][testset]['ssim']).mean()
         print('%16s,  %s,       PSNR:%.2f, SSIM:%.4f' % ( r, testset, psnr, ssim))

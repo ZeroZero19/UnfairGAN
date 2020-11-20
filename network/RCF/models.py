@@ -1,3 +1,4 @@
+# RCF, Code adapted from: 'https://github.com/meteorshowers/RCF-pytorch'
 import torch
 import torch.nn as nn
 import numpy as np
