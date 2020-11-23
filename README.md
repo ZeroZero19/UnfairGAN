@@ -4,9 +4,7 @@
 - pytorch      1.0
 - CUDA         8.0 or 9.0
 ## Download
-[Download all datasets](https://drive.google.com/drive/folders/1OIcoOsSoNVqhxcqC2eD5T8kaghbogTdQ?usp=sharing)
-
-[Download all pretrains](https://drive.google.com/drive/folders/1qQpeW4My_RA6YNGkji9cddd7aQ0zbq9f?usp=sharing)
+[Download all datasets and pretrains](https://drive.google.com/drive/u/2/folders/1-uIc10i4ktPpfk-6f0rnenWS-e24wHJK?fbclid=IwAR3T1XSaw3t7V5lVOs2ggnbGsKGKlCW427SpslnZ7SQ4X_JLmKBJ9jN31Is)
 
 ## Usage
 ### 1. Run Test
