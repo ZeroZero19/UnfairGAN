@@ -8,7 +8,7 @@
 
 [Download all pretrains](https://drive.google.com/drive/folders/1qQpeW4My_RA6YNGkji9cddd7aQ0zbq9f?usp=sharing)
 
-[Download all our results of testsets](https://drive.google.com/drive/folders/1-aKQo6MwPoVp-nobTzH_G0m3UvkMEbSg?usp=sharing)
+[Download all our results of testsets](https://drive.google.com/drive/folders/1fwtYaWwgYPb_V_jlzdvS_CU4nw2o3HJM?usp=sharing)
 
 [Download our trainset](https://drive.google.com/drive/folders/10xzxq4VPQHbrfO49TcOuayR2Quh21v4Q?usp=sharing)
 
