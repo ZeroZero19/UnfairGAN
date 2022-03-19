@@ -163,7 +163,8 @@ def create_gen_nets(args):
 
     if args.epoch_start != 0:
         # Load pretrained models
-        generator.load_state_dict(torch.load('./Exp1_RobotCarReal-deraindrop/saved_models/generator_%d.pth' % (args.epoch_start)))
+        generator.load_state_dict(torch.load(
+            './Exp1_RobotCarReal-deraindrop/saved_models/generator_%d.pth' % args.epoch_start,map_location=torch.device("cuda:0")))
     else:
         # Initialize weights
         generator.apply(weights_init_normal)

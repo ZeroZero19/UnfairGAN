@@ -179,7 +179,8 @@ def create_disc_nets(args):
 
     if args.epoch_start != 0:
         # Load pretrained models
-        discriminator.load_state_dict(torch.load('./Exp1_RobotCarReal-deraindrop/saved_models/discriminator_%d.pth' % (args.epoch_start)))
+        discriminator.load_state_dict(torch.load(
+            './Exp1_RobotCarReal-deraindrop/saved_models/discriminator_%d.pth' %args.epoch_start,map_location=torch.device("cuda:0")))
     else:
         # Initialize weights
         discriminator.apply(weights_init_normal)

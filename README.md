@@ -10,10 +10,12 @@
 
 [Download all our results of testsets](https://drive.google.com/drive/folders/1-aKQo6MwPoVp-nobTzH_G0m3UvkMEbSg?usp=sharing)
 
+[Download our trainset](https://drive.google.com/drive/folders/10xzxq4VPQHbrfO49TcOuayR2Quh21v4Q?usp=sharing)
+
 ## Usage
 ### 1. Run Test
 #### a. Test our data
-python test_ours_data.py
+python test_our_data.py
 #### b. Test real rain
 python test_real_rain.py
 #### c. Test real rain

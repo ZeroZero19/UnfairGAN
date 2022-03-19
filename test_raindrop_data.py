@@ -5,6 +5,7 @@ from torchvision.utils import make_grid, save_image
 import torch.nn as nn
 from utils import *
 from network.RCF.models import RCF
+import time
 
 
 def strToBool(str):
@@ -15,7 +16,8 @@ parser.add_argument("--out", type=str, default='results', help='path of save res
 parser.add_argument("--testset",  default='raindrop', const='raindrop', nargs='?', choices=['raindrop'], help='')
 parser.add_argument("--model",  default='all', const='all', nargs='?', choices=['all',
                                                                                 'U_D_raindrop',
-                                                                                'UnfairGAN_raindrop',], help='')
+                                                                                'UnfairGAN_raindrop',
+                                                                                'CycleGAN',], help='')
 parser.add_argument("--save_img", type='bool', default=True, help='')
 parser.add_argument("--debug", type='bool', default=False, help='')
 parser.add_argument("--gpu", type='bool', default=True, help='')
@@ -27,11 +29,11 @@ print(opt)
 if opt.model == 'all':
     dicts = [
         'rain',
+        'CycleGAN',
         'UnfairGAN_raindrop',
     ]
 else:
     dicts = [
-        'rain',
         opt.model,
         ]
 testsets = [opt.testset]
@@ -49,23 +51,32 @@ with torch.no_grad():
         # estNet
         estNet = Generator(inRM_chs=0, inED_chs=0, mainblock_type='U_D', act_type='ReLU', nfeats=16).to(device)
         estNet = nn.DataParallel(estNet, device_ids=[device])
-        estNet.load_state_dict(torch.load('weight/U_D_raindrop.pth'))
+        estNet.load_state_dict(torch.load('weight/U_D_raindrop.pth',map_location=device))
         estNet.eval()
         # rcf net
         rcfNet = RCF().to(device)
-        rcfNet.load_state_dict(torch.load('weight/RCF.pth')['state_dict'])
+        rcfNet.load_state_dict(torch.load('weight/RCF.pth',map_location=device)['state_dict'])
         rcfNet.eval()
         # unfairGAN net
-        if r != 'rain':
+        if 'UnfairGAN_raindrop' in r:
             unfairGAN = Generator(inRM_chs=1, inED_chs=3, mainblock_type='U_D', act_type='DAF', nfeats=16).to(device)
             unfairGAN = nn.DataParallel(unfairGAN, device_ids=[device])
-            unfairGAN.load_state_dict(torch.load('weight/%s.pth' % r))
+            unfairGAN.load_state_dict(torch.load('weight/%s.pth' % r,map_location=device))
             unfairGAN.eval()
+        # CycleGAN
+        if 'CycleGAN' in r:
+            from network.CycleGAN.models import networks
+            from network.CycleGAN.util import util 
+            CycleGAN = networks.define_G(3, 3, 64, 'resnet_9blocks','instance', not True, 'normal', 0.02, [0])
+            if isinstance(CycleGAN, torch.nn.DataParallel):
+                CycleGAN = CycleGAN.module
+            CycleGAN.load_state_dict(torch.load('weight/%s_raindrop.pth' % r,map_location=device))
+            CycleGAN.eval()
 
         for testset in testsets:
             ls = os.listdir('testsets/%s/rain' % testset)
             print(testset, len(ls))
-            results[r][testset] = {'psnr': [], 'ssim': []}
+            results[r][testset] = {'psnr': [], 'ssim': [], 'time': []}
             for i, img in enumerate(ls):
                 if opt.debug and i > 0: continue
                 # input
@@ -82,6 +93,10 @@ with torch.no_grad():
                 # target align to 16
                 target_a16 = align_to_num(target_cv2, 16)
                 target_a16 = to_tensor(target_a16, device)
+                # initial for measurement
+                cal_input = input
+                cal_target = target
+                start_time = time.time()
                 # rainmap
                 est = estNet(input)
                 logimg = make_grid(est.data.clamp(0., 1.), nrow=8, normalize=False, scale_each=False)
@@ -110,10 +125,19 @@ with torch.no_grad():
                 edge = to_tensor(edge, device)
                 # output
                 if r == 'rain':
-                    psnr, ssim = batch_psnr_ssim(input.clamp(0., 1.), target.clamp(0., 1.), batch_ssim=True)
+                    output = input.clone()
+                elif 'CycleGAN' in r:
+                    cyclegan_output = CycleGAN(input)
+                    cyclegan_output = util.tensor2im(cyclegan_output)
+                    cyclegan_output = cyclegan_output[:,:,::-1]
+                    cyclegan_output = align_to_num(cyclegan_output)
+                    output = to_tensor(cyclegan_output, device)
                 else:
                     output = unfairGAN(input, rm=rainmap, ed=edge)
-                    psnr, ssim = batch_psnr_ssim(output.clamp(0., 1.), target.clamp(0., 1.), batch_ssim=True)
+                # measurement
+                infer_time = (time.time() - start_time)
+                psnr, ssim = batch_psnr_ssim(output.clamp(0., 1.), cal_target.clamp(0., 1.), batch_ssim=True)
+                # save output
                 if opt.save_img and r != 'rain':
                     os.makedirs(os.path.join('%s/%s/%s' % (opt.out,testset, r)), exist_ok=True)
                     out_path = os.path.join('%s/%s/%s/%s' % (opt.out,testset, r, img))
@@ -122,12 +146,15 @@ with torch.no_grad():
 
                 results[r][testset]['psnr'].append(psnr.mean())
                 results[r][testset]['ssim'].append(ssim.mean())
+                results[r][testset]['time'].append(infer_time)
 
-                print('%s,  %s,  PSNR=%.2f, SSIM=%.4f' % (r, img, psnr, ssim))
+                print('%s,  %s,  PSNR=%.2f, SSIM=%.4f, RUNTIME=%.4f s' % (r, img, psnr, ssim, infer_time))
         # Free GPU
-        if r != 'rain':
+        if 'UnfairGAN_raindrop' in r:
             del unfairGAN
-            torch.cuda.empty_cache()
+        if 'CycleGAN' in r:
+            del CycleGAN
+        torch.cuda.empty_cache()
 
 # done
 # np.save(os.path.join('results', 'results.npy'), results)
@@ -138,5 +165,6 @@ for testset in testsets:
     for r in dicts:
         psnr = np.array(results[r][testset]['psnr']).mean()
         ssim = np.array(results[r][testset]['ssim']).mean()
-        print('%16s,  %s,       PSNR:%.2f, SSIM:%.4f' % ( r, testset, psnr, ssim))
+        time = np.array(results[r][testset]['time']).mean()
+        print('%20s,  %s,       PSNR:%.2f, SSIM:%.4f, RUNTIME=%.4f s' % ( r, testset, psnr, ssim, time))
 

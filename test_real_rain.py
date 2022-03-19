@@ -17,7 +17,8 @@ parser.add_argument("--model",  default='all', const='all', nargs='?', choices=[
                                                                                 'UnfairGAN',
                                                                                 'AttenGAN',
                                                                                 'RoboCar',
-                                                                                'Pix2Pix',], help='')
+                                                                                'Pix2Pix',
+                                                                                'CycleGAN',], help='')
 parser.add_argument("--gpu", type='bool', default=True, help='')
 
 parser.set_defaults(feature=True)
@@ -31,6 +32,7 @@ if opt.model == 'all':
         'AttenGAN',
         'RoboCar',
         'Pix2Pix',
+        'CycleGAN',
     ]
 else:
     dicts = [
@@ -58,16 +60,15 @@ with torch.no_grad():
         from network.unfairGan import Generator
         estNet = Generator(inRM_chs=0, inED_chs=0, mainblock_type='U_D', act_type='ReLU').to(device)
         estNet = nn.DataParallel(estNet, device_ids=[device])
-        estNet.load_state_dict(torch.load('weight/U_D.pth'))
+        estNet.load_state_dict(torch.load('weight/U_D.pth',map_location=device))
         estNet.eval()
         # rcf net
         rcfNet = RCF().to(device)
-        rcfNet.load_state_dict(torch.load('weight/RCF.pth')['state_dict'])
+        rcfNet.load_state_dict(torch.load('weight/RCF.pth',map_location=device)['state_dict'])
         rcfNet.eval()
         # Gnet
         if 'AttenGAN' in r:
             from network.attentionGan.generator import Generator
-
             Gnet = Generator().to(device)
         elif 'RoboCar' in r:
             from network.RoboCar.generator import Derain_GlobalGenerator
@@ -77,6 +78,10 @@ with torch.no_grad():
         elif 'Pix2Pix' in r:
             from network.Pix2Pix.networks import define_G
             Gnet = define_G(3, 3, 128, 'batch', False, 'normal', 0.02, gpu_id=device)
+        elif 'CycleGAN' in r:
+            from network.CycleGAN.models import networks
+            from network.CycleGAN.util import util 
+            Gnet = networks.define_G(3, 3, 64, 'resnet_9blocks','instance', not True, 'normal', 0.02, [0])
         else:
             from network.unfairGan import Generator
             if r == 'U':
@@ -95,8 +100,12 @@ with torch.no_grad():
                 Gnet = Generator(inRM_chs=1, inED_chs=3, mainblock_type='U_D', act_type='DAF', ).to(device)
 
         if r != 'rain':
-            Gnet = nn.DataParallel(Gnet, device_ids=[device])
-            Gnet.load_state_dict(torch.load('weight/%s.pth' % r))
+            if 'CycleGAN' in r:
+                if isinstance(Gnet, torch.nn.DataParallel):
+                    Gnet = Gnet.module
+            else:
+                Gnet = nn.DataParallel(Gnet, device_ids=[device])
+            Gnet.load_state_dict(torch.load('weight/%s.pth' % r,map_location=device))
             Gnet.eval()
 
         for testset in testsets:
@@ -144,9 +153,14 @@ with torch.no_grad():
                 # output
                 if r == 'U_D_G' or r == 'U_D' or r == 'U' or 'Pix2Pix' in r:
                     output = Gnet(input)
+                elif 'CycleGAN' in r:
+                    cyclegan_output = Gnet(input)
+                    cyclegan_output = util.tensor2im(cyclegan_output)
+                    cyclegan_output = cyclegan_output[:,:,::-1]
+                    cyclegan_output = align_to_num(cyclegan_output)
+                    output = to_tensor(cyclegan_output, device)
                 elif 'RoboCar' in r:
                     output = Gnet(input_a16)
-
                 elif 'AttenGAN' in r:
                     output = Gnet(input)[-1]
                 else:
